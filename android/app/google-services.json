@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "633974904096",
+    "project_id": "fasum-billa",
+    "storage_bucket": "fasum-billa.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:633974904096:android:05990e8ef1bdf360173345",
+        "android_client_info": {
+          "package_name": "com.example.fasum_bila"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "633974904096-9hb28hsrq2r5ocognuclgtqvqf61dt08.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBnGxBglFs6EsdfosQQ5z6qUNRjSesBdbM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "633974904096-9hb28hsrq2r5ocognuclgtqvqf61dt08.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
