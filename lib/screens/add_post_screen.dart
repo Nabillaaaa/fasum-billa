@@ -1,118 +1,139 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:fasum_bila/screens/home_screen.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class AddPostScreen extends StatefulWidget {
-  const AddPostScreen({Key? key}) : super(key: key);
-
   @override
   _AddPostScreenState createState() => _AddPostScreenState();
 }
 
 class _AddPostScreenState extends State<AddPostScreen> {
-  final TextEditingController _postTextController = TextEditingController();
-  File? _imageFile;
+  TextEditingController _postTextController = TextEditingController();
+  String? _imageUrl;
+  XFile? _image;
+  final User? user = FirebaseAuth.instance.currentUser;
 
-  Future<void> _pickImage(ImageSource source) async {
-    final pickedFile = await ImagePicker().pickImage(source: source);
+  Future<void> _getImageFromCamera() async {
+    final ImagePicker _picker = ImagePicker();
+    final XFile? image = await _picker.pickImage(source: ImageSource.camera);
 
-    setState(() {
-      if (pickedFile != null) {
-        _imageFile = File(pickedFile.path);
+    if (image != null) {
+      setState(() {
+        _image = image;
+      });
+
+      // Upload image and get URL if not on web
+      if (!kIsWeb) {
+        String? imageUrl = await _uploadImage(image);
+        setState(() {
+          _imageUrl = imageUrl;
+        });
       } else {
-        print('No image selected.');
-      }
-    });
-  }
-
-  Future<void> _uploadPost() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser != null) {
-      final postText = _postTextController.text.trim();
-
-      if (postText.isNotEmpty) {
-        try {
-          final imageURL = await _uploadImage();
-          await FirebaseFirestore.instance.collection('posts').add({
-            'userId': currentUser.uid,
-            'text': postText,
-            'imageURL': imageURL,
-            'timestamp': Timestamp.now(),
-          });
-          Navigator.pop(context); // Kembali ke Home Screen setelah berhasil posting
-        } catch (error) {
-          print('Error uploading post: $error');
-        }
-      } else {
-        // Handle empty post text
-        print('Post text cannot be empty');
+        setState(() {
+          _imageUrl = image.path;
+        });
       }
     }
   }
 
-  Future<String> _uploadImage() async {
-    // Simpan gambar ke storage (misalnya Firebase Storage) dan kembalikan URL-nya
-    // Contoh penggunaan Firebase Storage:
-    // final storageRef = FirebaseStorage.instance.ref().child('post_images').child('image.jpg');
-    // final uploadTask = storageRef.putFile(_imageFile!);
-    // final snapshot = await uploadTask.whenComplete(() => null);
-    // final imageURL = await snapshot.ref.getDownloadURL();
-    // return imageURL;
-
-    // Karena kita hanya membuat contoh, kita kembalikan string kosong
-    return '';
+  Future<String?> _uploadImage(XFile image) async {
+    try {
+      final ref = FirebaseStorage.instance.ref().child('post_images').child('${DateTime.now().toIso8601String()}.jpg');
+      await ref.putFile(File(image.path));
+      return await ref.getDownloadURL();
+    } catch (e) {
+      print('Error uploading image: $e');
+      return null;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Post'),
+        title: Text('Tambah Postingan'),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+        padding: EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             GestureDetector(
-              onTap: () async {
-                await _pickImage(ImageSource.camera);
-              },
+              onTap: _getImageFromCamera,
               child: Container(
                 height: 200,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(10.0),
-                ),
-                child: _imageFile != null
-                    ? Image.file(
-                  _imageFile!,
+                color: Colors.grey[200],
+                child: _image != null
+                    ? kIsWeb
+                    ? Image.network(
+                  _imageUrl!,
+                  fit: BoxFit.cover,
+                )
+                    : Image.file(
+                  File(_image!.path),
                   fit: BoxFit.cover,
                 )
                     : Icon(
                   Icons.camera_alt,
-                  size: 50,
-                  color: Colors.grey,
+                  size: 100,
+                  color: Colors.grey[400],
                 ),
+                alignment: Alignment.center,
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             TextField(
               controller: _postTextController,
+              maxLines: null,
               decoration: InputDecoration(
-                hintText: 'Write your post...',
+                hintText: 'Tulis postingan Anda di sini...',
                 border: OutlineInputBorder(),
               ),
-              maxLines: null,
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             ElevatedButton(
-              onPressed: _uploadPost,
-              child: const Text('Post'),
+              onPressed: () async {
+                if (_postTextController.text.isNotEmpty && _image != null) {
+                  if (_imageUrl == null) {
+                    _imageUrl = await _uploadImage(_image!);
+                  }
+                  if (_imageUrl != null) {
+                    FirebaseFirestore.instance.collection('posts').add({
+                      'text': _postTextController.text,
+                      'image_url': _imageUrl,
+                      'timestamp': Timestamp.now(),
+                      'username': user?.displayName ?? 'Anonim', // Menambahkan nama pengguna
+                      'userId': user?.uid, // Menyimpan ID pengguna untuk referensi
+                    }).then((_) {
+                      Navigator.pop(context);
+                    }).catchError((error) {
+                      print('Error saving post: $error');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Gagal menyimpan postingan. Silakan coba lagi.'),
+                        ),
+                      );
+                    });
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Gagal mengunggah gambar. Silakan coba lagi.'),
+                      ),
+                    );
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Silakan tulis postingan dan pilih gambar.'),
+                    ),
+                  );
+                }
+              },
+              child: Text('Posting'),
             ),
           ],
         ),
